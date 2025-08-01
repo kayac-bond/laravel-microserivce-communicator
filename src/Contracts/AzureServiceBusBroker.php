@@ -141,6 +141,13 @@ class AzureServiceBusBroker implements MessageBrokerInterface
 
                     // Pass the ServiceBusMessage instance to the callback
                     $callback($serviceBusMessage);
+
+                   // Azure Service Bus キューに完了通知を行う
+                    $serviceBusMessage->complete();
+                    $this->logger->info("Message successfully completed and removed from queue",[
+                        'messageId' => $serviceBusMessage->getMessageId()
+                    ]);
+
                 } catch (\Exception $e) {
                     $this->logger->error("Error processing message", [
                         'queue' => $queueName,
@@ -148,8 +155,15 @@ class AzureServiceBusBroker implements MessageBrokerInterface
                         'error' => $e->getMessage(),
                         'trace' => $e->getTraceAsString()
                     ]);
-                }
 
+                    // エラー発生時はメッセージを破棄(通らない場合はデッドレターになる)
+                    if ($serviceBusMessage) {
+                        $serviceBusMessage->abandon();
+                        $this->logger->info("Message abandoned due to processing error", [
+                            'messageId' => $serviceBusMessage->getMessageId()
+                        ]);
+                    }
+                }
             } catch (\Exception $e) {
                 $this->logger->error("Unexpected error in subscription", [
                     'queue' => $queueName,
